@@ -188,39 +188,83 @@ elif sezione == "🗄️ Database Costi":
         st.write("#### Stato attuale dispensa:")
         st.dataframe(pd.DataFrame.from_dict(st.session_state.database_dispensa, orient='index'), use_container_width=True)
 
-    with tab2:
+        with tab2:
         st.subheader("Costo Orario Personale")
-        st.session_state.database_personale["STAFF-01"]["costo_orario"] = st.number_input("Paga Oraria Cuoco (€/ora)", value=st.session_state.database_personale["STAFF-01"]["costo_orario"])
-        st.info("I calcoli del calcolatore si aggiorneranno automaticamente basandosi su questo valore.")
+        for id_staff, info in st.session_state.database_personale.items():
+            nuovo_costo = st.number_input(
+                f"Costo Orario per {info['ruolo']} (€/ora)", 
+                value=info["costo_orario"], 
+                step=0.50, 
+                key=id_staff
+            )
+            st.session_state.database_personale[id_staff]["costo_orario"] = nuovo_costo
 
     with tab3:
         st.subheader("Consumo Energetico Attrezzature")
-        st.session_state.database_attrezzature["EQ-01"]["costo_minuto"] = st.number_input("Costo Forno al Minuto (€)", value=st.session_state.database_attrezzature["EQ-01"]["costo_minuto"], format="%.2f")
-        st.session_state.database_attrezzature["EQ-02"]["costo_minuto"] = st.number_input("Costo Fornello Gas al Minuto (€)", value=st.session_state.database_attrezzature["EQ-02"]["costo_minuto"], format="%.2f")
+        for id_eq, info in st.session_state.database_attrezzature.items():
+            nuovo_costo_min = st.number_input(
+                f"Costo al Minuto per {info['nome']} (€/min)", 
+                value=info["costo_minuto"], 
+                format="%.2f", 
+                step=0.01, 
+                key=id_eq
+            )
+            st.session_state.database_attrezzature[id_eq]["costo_minuto"] = nuovo_costo_min
+
 
 # =====================================================================
-# SEZIONE 3: RICETTARIO
+# SEZIONE 3: RICETTARIO (IL COMPOSITORE DINAMICO)
 # =====================================================================
 elif sezione == "📜 Ricettario":
-    st.header("📜 Il tuo Ricettario Avanzato")
+    st.header("📜 Il tuo Ricettario")
     st.write("Elenco dei piatti registrati e dei relativi tempi tecnici:")
     
     for id_r, r in st.session_state.database_ricette.items():
         with st.expander(f"📖 {r['nome_piatto']} — Menu: € {r['prezzo_menu']:.2f}"):
-            st.write("**⚙️ Dettagli Processo Produttivo:**")
+            st.write("**🛒 Ingredienti Associati:**")
+            for legame in st.session_state.ingredienti_ricetta:
+                if legame["id_ricetta"] == id_r:
+                    if legame["id_ingrediente"] in st.session_state.database_dispensa:
+                        nome_ing = st.session_state.database_dispensa[legame["id_ingrediente"]]["nome"]
+                        st.write(f"- {nome_ing}: {legame['grammi_usati']}g")
             
-            # Controlla che i blocchi FOR e IF sottostanti abbiano esattamente questi spazi:
+            st.write("**⚙️ Dettagli Processo Produttivo:**")
             for legame in st.session_state.lavoro_ricetta:
                 if legame["id_ricetta"] == id_r:
                     st.write(f"- ⏱️ Tempo Impiattamento/Lavoro: {legame['minuti_dedicati']} minuti")
-                    
             for legame in st.session_state.cottura_ricetta:
                 if legame["id_ricetta"] == id_r:
                     nome_eq = st.session_state.database_attrezzature[legame["id_attrezzatura"]]["nome"]
                     st.write(f"- 🔥 Cottura in {nome_eq}: {legame['minuti_utilizzo']} minuti")
-            
-            st.write("**🛒 Ingredienti Associati:**")
-            for legame in st.session_state.ingredienti_ricetta:
-                if legame["id_ricetta"] == id_r:
-                    nome_ing = st.session_state.database_dispensa[legame["id_ingrediente"]]["nome"]
-                    st.write(f"• {nome_ing}: {legame['grammi_usati']}g")
+
+    st.write("---")
+    st.write("### ➕ Aggiungi o Modifica un ingrediente in un piatto")
+    
+    # Menu a tendina dinamici che leggono dal database in tempo reale
+    opzioni_piatti_comp = {id_r: r["nome_piatto"] for id_r, r in st.session_state.database_ricette.items()}
+    piatto_scelto = st.selectbox("Seleziona il piatto:", list(opzioni_piatti_comp.keys()), format_func=lambda x: opzioni_piatti_comp[x])
+    
+    opzioni_ingredienti = {id_i: i["nome"] for id_i, i in st.session_state.database_dispensa.items()}
+    ingrediente_scelto = st.selectbox("Seleziona l'ingrediente da inserire:", list(opzioni_ingredienti.keys()), format_func=lambda x: opzioni_ingredienti[x])
+    
+    grammi_da_usare = st.number_input("Inserisci la dose in grammi (g):", min_value=1, value=50, step=5)
+    
+    if st.button("Lega Ingrediente al Piatto"):
+        gia_presente = False
+        # Se l'ingrediente c'è già, aggiorna semplicemente i grammi senza duplicarlo
+        for legame in st.session_state.ingredienti_ricetta:
+            if legame["id_ricetta"] == piatto_scelto and legame["id_ingrediente"] == ingrediente_scelto:
+                legame["grammi_usati"] = grammi_da_usare
+                gia_presente = True
+                st.success("🔄 Quantità ingrediente aggiornata nel piatto!")
+                st.rerun()
+        
+        # Se è un ingrediente nuovo per quel piatto, crea il legame
+        if not gia_presente:
+            st.session_state.ingredienti_ricetta.append({
+                "id_ricetta": piatto_scelto,
+                "id_ingrediente": ingrediente_scelto,
+                "grammi_usati": grammi_da_usare
+            })
+            st.success("✔️ Nuovo ingrediente aggiunto alla ricetta!")
+            st.rerun()
