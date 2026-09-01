@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-
+import sqlite3
 
 # SCHERMATA DI ACCESSO (LOGIN)
 if "autenticato" not in st.session_state:
@@ -17,7 +17,6 @@ if not st.session_state.autenticato:
             st.error("Chiave errata. Contatta l'amministratore.")
     st.stop() # Blocca il resto del codice se non sei autenticato
 
-import sqlite3
 
 # Funzione per inizializzare il database permanente e creare la tabella se manca
 def inizializza_db_permanente():
@@ -45,9 +44,6 @@ def inizializza_db_permanente():
 
 # Avvia l'inizializzazione del database
 inizializza_db_permanente()
-
-
-
 
 
 # 1. IMPOSTAZIONI LAYOUT CELLULARE
@@ -95,8 +91,11 @@ def carica_dispensa_da_db():
     # Trasforma i dati nel formato dizionario richiesto dal resto del tuo codice
     return {id_ing: {"nome": nome, "prezzo_kg": prezzo} for id_ing, nome, prezzo in righe}
 
-# Sovrascrive lo stato della sessione caricando i dati reali e aggiornati dal file
-st.session_state.database_dispensa = carica_dispensa_da_db()
+
+# --- CORREZIONE CRUCIALE 1 ---
+# Carica dal database fisico SOLO se la sessione è vuota, altrimenti sovrascrive i nuovi inserimenti!
+if "database_dispensa" not in st.session_state:
+    st.session_state.database_dispensa = carica_dispensa_da_db()
 
 if "database_personale" not in st.session_state:
     st.session_state.database_personale = {
@@ -140,6 +139,7 @@ sezione = st.sidebar.radio(
     ["📊 Calcolatore", "🗄️ Database Costi", "📜 Ricettario"]
 )
 
+
 # =====================================================================
 # SEZIONE 1: IL CALCOLATORE (LOGICA DEL TUO CODICE CORE)
 # =====================================================================
@@ -177,8 +177,14 @@ if sezione == "📊 Calcolatore":
     costo_reale_produzione = costo_ingredienti + costo_lavoro + costo_energia
     margine_lordo_euro = prezzo_menu_dinamico - costo_reale_produzione
     
-    incidenza_food_cost_puro = (costo_ingredienti / prezzo_menu_dinamico) * 100
-    incidenza_costo_reale = (costo_reale_produzione / prezzo_menu_dinamico) * 100
+    # Sicurezza per evitare divisioni per zero se il prezzo del menu viene azzerato
+    if prezzo_menu_dinamico > 0:
+        incidenza_food_cost_puro = (costo_ingredienti / prezzo_menu_dinamico) * 100
+        incidenza_costo_reale = (costo_reale_produzione / prezzo_menu_dinamico) * 100
+    else:
+        incidenza_food_cost_puro = 0.0
+        incidenza_costo_reale = 100.0
+        
     prezzo_consigliato = costo_reale_produzione * 3.33
 
     # --- INTERFACCIA GRAFICA CARINA PER IL CELLULARE ---
@@ -227,104 +233,7 @@ elif sezione == "🗄️ Database Costi":
                 if nuovo_nome:
                     # Genera un codice ID automatico progressivo (es. ING-004, ING-005...)
                     nuovo_id = f"ING-00{len(st.session_state.database_dispensa) + 1}"
-                    st.session_state.database_dispensa[nuovo_id] = {"nome": nuovo_nome, "prezzo_kg": nuovo_prezzo_kg}
-                    st.success(f"✔️ {nuovo_nome} aggiunto alla dispensa a € {nuovo_prezzo_kg:.2f}/Kg!")
-                    st.rerun()
-                else:
-                    st.error("Inserisci un nome valido prima di salvare.")
-
-        st.write("---")
-        st.write("🔄 Modifica prezzo ingrediente esistente:")
-        # Menu per selezionare un ingrediente esistente da modificare
-        ing_scelto = st.selectbox("Seleziona ingrediente da aggiornare:", list(st.session_state.database_dispensa.keys()), format_func=lambda x: st.session_state.database_dispensa[x]["nome"])
-        nuovo_prezzo = st.number_input("Nuovo prezzo al KG (€)", value=st.session_state.database_dispensa[ing_scelto]["prezzo_kg"], step=0.50)
-        
-        if st.button("Aggiorna Prezzo Dispensa"):
-            st.session_state.database_dispensa[ing_scelto]["prezzo_kg"] = nuovo_prezzo
-            st.success(f"🔄 Prezzo aggiornato per: {st.session_state.database_dispensa[ing_scelto]['nome']}")
-            st.rerun()
-            
-        st.write("#### Stato attuale dispensa:")
-        df_dispensa = pd.DataFrame.from_dict(st.session_state.database_dispensa, orient='index')
-        st.dataframe(df_dispensa, use_container_width=True)
-
-    with tab2:
-        st.subheader("Costo Orario Personale")
-        for id_staff, info in st.session_state.database_personale.items():
-            nuovo_costo = st.number_input(
-                f"Costo Orario per {info['ruolo']} (€/ora)", 
-                value=info["costo_orario"], 
-                step=0.50, 
-                key=id_staff
-            )
-            st.session_state.database_personale[id_staff]["costo_orario"] = nuovo_costo
-
-    with tab3:
-        st.subheader("Consumo Energetico Attrezzature")
-        for id_eq, info in st.session_state.database_attrezzature.items():
-            nuovo_costo_min = st.number_input(
-                f"Costo al Minuto per {info['nome']} (€/min)", 
-                value=info["costo_minuto"], 
-                format="%.2f", 
-                step=0.01, 
-                key=id_eq
-            )
-            st.session_state.database_attrezzature[id_eq]["costo_minuto"] = nuovo_costo_min
-
-
-# =====================================================================
-# SEZIONE 3: RICETTARIO (IL COMPOSITORE DINAMICO)
-# =====================================================================
-elif sezione == "📜 Ricettario":
-    st.header("📜 Il tuo Ricettario")
-    st.write("Elenco dei piatti registrati e dei relativi tempi tecnici:")
-    
-    for id_r, r in st.session_state.database_ricette.items():
-        with st.expander(f"📖 {r['nome_piatto']} — Menu: € {r['prezzo_menu']:.2f}"):
-            st.write("**🛒 Ingredienti Associati:**")
-            for legame in st.session_state.ingredienti_ricetta:
-                if legame["id_ricetta"] == id_r:
-                    if legame["id_ingrediente"] in st.session_state.database_dispensa:
-                        nome_ing = st.session_state.database_dispensa[legame["id_ingrediente"]]["nome"]
-                        st.write(f"- {nome_ing}: {legame['grammi_usati']}g")
-            
-            st.write("**⚙️ Dettagli Processo Produttivo:**")
-            for legame in st.session_state.lavoro_ricetta:
-                if legame["id_ricetta"] == id_r:
-                    st.write(f"- ⏱️ Tempo Impiattamento/Lavoro: {legame['minuti_dedicati']} minuti")
-            for legame in st.session_state.cottura_ricetta:
-                if legame["id_ricetta"] == id_r:
-                    nome_eq = st.session_state.database_attrezzature[legame["id_attrezzatura"]]["nome"]
-                    st.write(f"- 🔥 Cottura in {nome_eq}: {legame['minuti_utilizzo']} minuti")
-
-    st.write("---")
-    st.write("### ➕ Aggiungi o Modifica un ingrediente in un piatto")
-    
-    # Menu a tendina dinamici che leggono dal database in tempo reale
-    opzioni_piatti_comp = {id_r: r["nome_piatto"] for id_r, r in st.session_state.database_ricette.items()}
-    piatto_scelto = st.selectbox("Seleziona il piatto:", list(opzioni_piatti_comp.keys()), format_func=lambda x: opzioni_piatti_comp[x])
-    
-    opzioni_ingredienti = {id_i: i["nome"] for id_i, i in st.session_state.database_dispensa.items()}
-    ingrediente_scelto = st.selectbox("Seleziona l'ingrediente da inserire:", list(opzioni_ingredienti.keys()), format_func=lambda x: opzioni_ingredienti[x])
-    
-    grammi_da_usare = st.number_input("Inserisci la dose in grammi (g):", min_value=1, value=50, step=5)
-    
-    if st.button("Lega Ingrediente al Piatto"):
-        gia_presente = False
-        # Se l'ingrediente c'è già, aggiorna semplicemente i grammi senza duplicarlo
-        for legame in st.session_state.ingredienti_ricetta:
-            if legame["id_ricetta"] == piatto_scelto and legame["id_ingrediente"] == ingrediente_scelto:
-                legame["grammi_usati"] = grammi_da_usare
-                gia_presente = True
-                st.success("🔄 Quantità ingrediente aggiornata nel piatto!")
-                st.rerun()
-        
-        # Se è un ingrediente nuovo per quel piatto, crea il legame
-        if not gia_presente:
-            st.session_state.ingredienti_ricetta.append({
-                "id_ricetta": piatto_scelto,
-                "id_ingrediente": ingrediente_scelto,
-                "grammi_usati": grammi_da_usare
-            })
-            st.success("✔️ Nuovo ingrediente aggiunto alla ricetta!")
-            st.rerun()
+                    
+                    # --- CORREZIONE CRUCIALE 2 (Scrittura fisica su DB) ---
+                    conn = sqlite3.connect("chefmargin.db")
+                    cursor = conn.cursor()
