@@ -6,10 +6,13 @@ import sqlite3
 # INIZIALIZZAZIONE DATABASE PERMANENTE (SQLITE)
 # =====================================================================
 # Sostituisci la vecchia funzione inizializza_db_permanente con questa:
+# =====================================================================
+# INIZIALIZZAZIONE FORZATA E SICURA DEL DATABASE SQLITE
+# =====================================================================
 def inizializza_db_permanente():
     conn = sqlite3.connect("chefmargin.db")
     cursor = conn.cursor()
-    # Crea la tabella della dispensa se non esiste già
+    # 1. Crea la tabella se manca
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dispensa (
             id_ingrediente TEXT PRIMARY KEY,
@@ -18,23 +21,23 @@ def inizializza_db_permanente():
         )
     """)
     
-    # Controlliamo quanti ingredienti ci sono davvero
-    cursor.execute("SELECT COUNT(*) FROM dispensa")
-    conteggio = cursor.fetchone()[0]
+    # 2. Inserisce (o ripristina se mancanti) i tuoi 3 ingredienti core di base
+    ingredienti_base = [
+        ("ING-001", "Filetto di Salmone", 22.00),
+        ("ING-002", "Patate", 2.00),
+        ("ING-003", "Olio d'Oliva", 8.50)
+    ]
+    cursor.executemany("""
+        INSERT OR IGNORE INTO dispensa (id_ingrediente, nome, prezzo_kg) 
+        VALUES (?, ?, ?)
+    """, ingredienti_base)
     
-    # SE IL DATABASE È VUOTO (0 ingredienti), INSERIAMO SUBITO I TUOI DATI CORE REALI
-    if conteggio == 0:
-        ingredienti_base = [
-            ("ING-001", "Filetto di Salmone", 22.00),
-            ("ING-002", "Patate", 2.00),
-            ("ING-003", "Olio d'Oliva", 8.50)
-        ]
-        cursor.executemany("INSERT INTO dispensa (id_ingrediente, nome, prezzo_kg) VALUES (?, ?, ?)", ingredienti_base)
-        conn.commit()
+    conn.commit()
     conn.close()
 
-# Avvia l'inizializzazione corretta
+# Avvia la creazione pulita del file di database
 inizializza_db_permanente()
+
 
 
 # Funzione per leggere la dispensa salvata nel file reale
