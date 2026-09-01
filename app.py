@@ -206,10 +206,10 @@ elif sezione == "📜 Ricettario":
     st.write("Elenco dei piatti registrati e dei relativi tempi tecnici:")
     
     for id_r, r in st.session_state.database_ricette.items():
-        with st.expander(f"📖 {r['nome_piatto']} (Prezzo Menu: € {r['prezzo_menu']:.2f})"):
+        with st.expander(f"📖 {r['nome_piatto']} — Menu: € {r['prezzo_menu']:.2f}"):
             st.write("**⚙️ Dettagli Processo Produttivo:**")
             
-            # Cerca tempi relativi a questa ricetta
+            # Controlla che i blocchi FOR e IF sottostanti abbiano esattamente questi spazi:
             for legame in st.session_state.lavoro_ricetta:
                 if legame["id_ricetta"] == id_r:
                     st.write(f"- ⏱️ Tempo Impiattamento/Lavoro: {legame['minuti_dedicati']} minuti")
@@ -222,3 +222,5 @@ elif sezione == "📜 Ricettario":
             st.write("**🛒 Ingredienti Associati:**")
             for legame in st.session_state.ingredienti_ricetta:
                 if legame["id_ricetta"] == id_r:
+                    nome_ing = st.session_state.database_dispensa[legame["id_ingrediente"]]["nome"]
+                    st.write(f"• {nome_ing}: {legame['grammi_usati']}g")
