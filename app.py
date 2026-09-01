@@ -17,6 +17,39 @@ if not st.session_state.autenticato:
             st.error("Chiave errata. Contatta l'amministratore.")
     st.stop() # Blocca il resto del codice se non sei autenticato
 
+import sqlite3
+
+# Funzione per inizializzare il database permanente e creare la tabella se manca
+def inizializza_db_permanente():
+    conn = sqlite3.connect("chefmargin.db")
+    cursor = conn.cursor()
+    # Crea la tabella della dispensa se non esiste già
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dispensa (
+            id_ingrediente TEXT PRIMARY KEY,
+            nome TEXT,
+            prezzo_kg REAL
+        )
+    """)
+    # Se la tabella è vuota (primo avvio), inserisce i tuoi 3 ingredienti core di base
+    cursor.execute("SELECT COUNT(*) FROM dispensa")
+    if cursor.fetchone()[0] == 0:
+        ingredienti_base = [
+            ("ING-001", "Filetto di Salmone", 22.00),
+            ("ING-002", "Patate", 2.00),
+            ("ING-003", "Olio d'Oliva", 8.50)
+        ]
+        cursor.executemany("INSERT INTO dispensa VALUES (?, ?, ?)", ingredienti_base)
+        conn.commit()
+    conn.close()
+
+# Avvia l'inizializzazione del database
+inizializza_db_permanente()
+
+
+
+
+
 # 1. IMPOSTAZIONI LAYOUT CELLULARE
 st.set_page_config(
     page_title="ChefMargin AI",
@@ -51,12 +84,19 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 2. CARICAMENTO DEL TUO DATABASE CORE CORRETTO (Session State)
-if "database_dispensa" not in st.session_state:
-    st.session_state.database_dispensa = {
-        "ING-001": {"nome": "Filetto di Salmone", "prezzo_kg": 22.00},
-        "ING-002": {"nome": "Patate", "prezzo_kg": 2.00},
-        "ING-003": {"nome": "Olio d'Oliva", "prezzo_kg": 8.50}
-    }
+# Legge gli ingredienti salvati nel database fisico e li carica nell'app
+def carica_dispensa_da_db():
+    conn = sqlite3.connect("chefmargin.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id_ingrediente, nome, prezzo_kg FROM dispensa")
+    righe = cursor.fetchall()
+    conn.close()
+    
+    # Trasforma i dati nel formato dizionario richiesto dal resto del tuo codice
+    return {id_ing: {"nome": nome, "prezzo_kg": prezzo} for id_ing, nome, prezzo in righe}
+
+# Sovrascrive lo stato della sessione caricando i dati reali e aggiornati dal file
+st.session_state.database_dispensa = carica_dispensa_da_db()
 
 if "database_personale" not in st.session_state:
     st.session_state.database_personale = {
