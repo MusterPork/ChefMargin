@@ -188,7 +188,7 @@ elif sezione == "🗄️ Database Costi":
         st.write("#### Stato attuale dispensa:")
         st.dataframe(pd.DataFrame.from_dict(st.session_state.database_dispensa, orient='index'), use_container_width=True)
 
-        with tab2:
+    with tab2:
         st.subheader("Costo Orario Personale")
         for id_staff, info in st.session_state.database_personale.items():
             nuovo_costo = st.number_input(
