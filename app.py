@@ -176,17 +176,37 @@ elif sezione == "🗄️ Database Costi":
     tab1, tab2, tab3 = st.tabs(["🥩 Dispensa", "👨‍🍳 Personale", "⚡ Utenze"])
     
     with tab1:
-        st.subheader("Aggiorna o Aggiungi Prezzi Ingredienti")
+        st.subheader("Gestione Ingredienti")
+        
+        # MODULO COMPLETO PER AGGIUNGERE UN NUOVO INGREDIENTE
+        with st.expander("➕ Inserisci un nuovo ingrediente da zero"):
+            nuovo_nome = st.text_input("Nome dell'ingrediente (es. Farina, Burro, Latte):")
+            nuovo_prezzo_kg = st.number_input("Prezzo d'acquisto al KG o al Litro (€):", min_value=0.0, value=1.00, step=0.50)
+            
+            if st.button("Salva Nuovo Ingrediente"):
+                if nuovo_nome:
+                    # Genera un codice ID automatico progressivo (es. ING-004, ING-005...)
+                    nuovo_id = f"ING-00{len(st.session_state.database_dispensa) + 1}"
+                    st.session_state.database_dispensa[nuovo_id] = {"nome": nuovo_nome, "prezzo_kg": nuovo_prezzo_kg}
+                    st.success(f"✔️ {nuovo_nome} aggiunto alla dispensa a € {nuovo_prezzo_kg:.2f}/Kg!")
+                    st.rerun()
+                else:
+                    st.error("Inserisci un nome valido prima di salvare.")
+
+        st.write("---")
+        st.write("🔄 Modifica prezzo ingrediente esistente:")
         # Menu per selezionare un ingrediente esistente da modificare
         ing_scelto = st.selectbox("Seleziona ingrediente da aggiornare:", list(st.session_state.database_dispensa.keys()), format_func=lambda x: st.session_state.database_dispensa[x]["nome"])
         nuovo_prezzo = st.number_input("Nuovo prezzo al KG (€)", value=st.session_state.database_dispensa[ing_scelto]["prezzo_kg"], step=0.50)
         
         if st.button("Aggiorna Prezzo Dispensa"):
             st.session_state.database_dispensa[ing_scelto]["prezzo_kg"] = nuovo_prezzo
-            st.success(f"🔄 Prezzo aggiornato nel database per: {st.session_state.database_dispensa[ing_scelto]['nome']}")
+            st.success(f"🔄 Prezzo aggiornato per: {st.session_state.database_dispensa[ing_scelto]['nome']}")
+            st.rerun()
             
         st.write("#### Stato attuale dispensa:")
-        st.dataframe(pd.DataFrame.from_dict(st.session_state.database_dispensa, orient='index'), use_container_width=True)
+        df_dispensa = pd.DataFrame.from_dict(st.session_state.database_dispensa, orient='index')
+        st.dataframe(df_dispensa, use_container_width=True)
 
     with tab2:
         st.subheader("Costo Orario Personale")
