@@ -1,6 +1,22 @@
 import streamlit as st
 import pandas as pd
 
+
+# SCHERMATA DI ACCESSO (LOGIN)
+if "autenticato" not in st.session_state:
+    st.session_state.autenticato = False
+
+if not st.session_state.autenticato:
+    st.title("🔒 Accesso Riservato ChefMargin AI")
+    password = st.text_input("Inserisci la chiave d'accesso per il ristorante:", type="password")
+    if st.button("Entra nell'App"):
+        if password == "3quarks": # Scegli la tua password
+            st.session_state.autenticato = True
+            st.rerun()
+        else:
+            st.error("Chiave errata. Contatta l'amministratore.")
+    st.stop() # Blocca il resto del codice se non sei autenticato
+
 # 1. IMPOSTAZIONI LAYOUT CELLULARE
 st.set_page_config(
     page_title="ChefMargin AI",
